@@ -1,50 +1,51 @@
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-from unidecode import unidecode
 
-radar = pd.read_csv("data/ocr_radar.csv", date_format = ["datahora_captura", "datahora"])
+# Dados ------------------------------------------------------------------------
 
-# Plot Frequência Veículos -----------------------------------------------------
+radar = pd.read_csv("data/ocr_radar.csv")
+radar = radar[["placa_anonymized", "datahora_captura", "tipoveiculo"]]
 
-fig, ax = plt.subplots(figsize = (8, 4))
-sns.countplot(data = radar, x = "tipoveiculo", ax = ax)
-plt.show()
-
-# Limpeza da Categoria "tipoveiculo"" ------------------------------------------
+# Tratamento dos Dados ---------------------------------------------------------
 
 radar["tipoveiculo"] = radar["tipoveiculo"].astype("category")
 radar["tipoveiculo"] = radar["tipoveiculo"].str.lower()
 radar["tipoveiculo"] = radar["tipoveiculo"].str.normalize("NFKD").str.encode("ascii", errors = "ignore").str.decode("utf-8")
+# TODO: Tratar mesma placa com tipos diferentes
+# TODO: Tratar tipo indefinido
 
-radar["tipoveiculo"].value_counts(dropna = False)
+radar["id"] = radar["placa_anonymized"].astype('category').cat.codes
 
-# Plot Frequência Veículos -----------------------------------------------------
+radar = radar.rename(columns = {"datahora_captura": "datetime"})
 
-fig, ax = plt.subplots(figsize = (8, 4))
-sns.countplot(data = radar, x = "tipoveiculo", ax = ax)
-plt.show()
+# Função st_radar --------------------------------------------------------------
 
-# Veículos Com Mais de um registro ---------------------------------------------
+def st_radar(df, time_interval):
+  """
+  
+  """
+  
+  df["datetime"] = pd.to_datetime(df["datetime"])
+  
+  df = df.sort_values(by = ["id", "datetime"])
+  
+  def add_id_st(group):
+    """
+    """
+    
+    group = group.sort_values(by = "datetime")
+    group["id_st_local"] = (group["datetime"].diff() > pd.Timedelta(hours = time_interval)).cumsum() + 1
+    group["id_st"] = group["id"].astype(str) + '_' + group["id_st_local"].astype(str)
+    return group
 
-df = radar.groupby("placa_anonymized", as_index = False).agg(
-  count = pd.NamedAgg(column = "placa_anonymized", aggfunc = "count")
-)
+  df = df.groupby("id").apply(add_id_st).reset_index(drop = True)
+  
+  df.reset_index(inplace = True)
+  df.rename(columns = {"index": "row"}, inplace = True)
+  
+  df["caminho_st"] = df.groupby("id_st")["row"].transform(lambda x: ', '.join(x.astype(str)))
+  
+  df = df.drop(columns = ["id_st_local", "row"])
+  
+  return df
 
-df = df[df["count"] >= 2]
-
-radar_filter = pd.merge(df, radar, on = "placa_anonymized", how = "left")
-
-# TODO: pegar todos os 5M de linhas
-
-# Contagem placa Véiculo--------------------------------------------------------
-
-contagem_placa_veiculo = radar.groupby(["placa_anonymized", "tipoveiculo"], as_index = False).agg(
-  count = pd.NamedAgg(column = "placa_anonymized", aggfunc = "count")
-)
-
-# ------------------------------------------------------------------------------
-
-# TODO: Fazer st, tentar separar com varios valores 1h, 2h, 3h
-
-# TODO: plot radar shape
+radar_st = st_radar(radar, time_interval = 3)
