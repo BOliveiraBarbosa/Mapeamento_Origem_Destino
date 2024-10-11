@@ -2,8 +2,8 @@ import pandas as pd
 
 # Dados ------------------------------------------------------------------------
 
-radar = pd.read_csv("data/ocr_radar.csv")
-radar = radar[["placa_anonymized", "datahora_captura", "tipoveiculo"]]
+radar = pd.read_csv("data/radar_areas.csv")
+radar = radar[["placa_anonymized", "datahora_captura", "tipoveiculo", "nome"]]
 
 # Tratamento dos Dados ---------------------------------------------------------
 
@@ -16,6 +16,8 @@ radar["tipoveiculo"] = radar["tipoveiculo"].str.normalize("NFKD").str.encode("as
 radar["id"] = radar["placa_anonymized"].astype('category').cat.codes
 
 radar = radar.rename(columns = {"datahora_captura": "datetime"})
+
+# Intersect Bairros ------------------------------------------------------------
 
 # Função st_radar --------------------------------------------------------------
 
@@ -49,3 +51,9 @@ def st_radar(df, time_interval):
   return df
 
 radar_st = st_radar(radar, time_interval = 3)
+
+# Prepara Dados para Dashboard -------------------------------------------------
+
+# Escreve Resultado ------------------------------------------------------------
+
+radar_st.to_csv("data/origem_destino.csv")
